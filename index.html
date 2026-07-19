@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Action Black Booker</title>
+<style>
+  :root { color-scheme: dark; --bg:#0e0e11; --card:#1a1a20; --line:#2a2a33; --txt:#ececf1;
+          --dim:#8b8b98; --acc:#e8ff47; --ok:#4ade80; --err:#f87171; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.45 -apple-system, system-ui, sans-serif;
+         max-width: 480px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; letter-spacing: .12em; margin-bottom: 12px; }
+  h2 { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing:.08em; margin: 18px 0 8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
+  input, select, button { font: inherit; border-radius: 8px; border: 1px solid var(--line);
+         background:#101014; color:var(--txt); padding: 10px 12px; width: 100%; margin-bottom: 8px; }
+  button { cursor: pointer; background: var(--acc); color: #111; font-weight: 600; border: 0; }
+  button.small { width:auto; padding:6px 12px; font-size:13px; margin:0; }
+  button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); }
+  button:disabled { background:var(--line); color:var(--dim); cursor: default; }
+  .row { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .row .time { font-variant-numeric: tabular-nums; font-weight:600; width:52px; }
+  .row .name { flex:1; } .row .name small { display:block; color:var(--dim); }
+  .past { opacity:.4; }
+  .days { display:flex; gap:6px; overflow-x:auto; margin-bottom:10px; }
+  .days button { width:auto; flex:0 0 auto; padding:8px 12px; background:var(--card); color:var(--txt);
+                 border:1px solid var(--line); font-weight:500; }
+  .days button.sel { background:var(--acc); color:#111; font-weight:700; border-color:var(--acc); }
+  .msg { color: var(--dim); padding: 8px 2px; } .msg.err { color: var(--err); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
+  .tag.ok { color:var(--ok); border-color:var(--ok); } .tag.err { color:var(--err); border-color:var(--err); }
+  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  a { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<div id="app" class="msg">Loading…</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// ── configure these two for your Supabase project ──────────────────────────
+const SUPABASE_URL = "https://umxtymppffxhlhcrehgf.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVteHR5bXBwZmZ4aGxoY3JlaGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTUzMjgsImV4cCI6MjA5OTk3MTMyOH0.18_LH_pmJ23X6xtwQOQPNw3iBjYuwlxyrEjXHQWsM9s";
+// ───────────────────────────────────────────────────────────────────────────
+
+const FN = `${SUPABASE_URL}/functions/v1`;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const app = document.getElementById("app");
+const state = { branch: null, day: new Date().toISOString().slice(0, 10), acts: [], reqs: [], branches: [] };
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const hhmm = (iso) => iso.slice(11, 16);
+const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString("en", { weekday: "short", day: "numeric" });
+
+async function fnFetch(path, opts = {}) {
+  const { data: { session } } = await sb.auth.getSession();
+  const resp = await fetch(`${FN}/${path}`, {
+    ...opts,
+    headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY,
+               authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`, ...opts.headers },
+  });
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(body.error ?? `HTTP ${resp.status}`);
+  return body;
+}
+
+// ── login view ─────────────────────────────────────────────────────────────
+async function renderLogin(err = "") {
+  if (!state.branches.length) {
+    try { state.branches = await fnFetch("gym?op=branches"); }
+    catch (e) { err = `could not load branches: ${e.message}`; }
+  }
+  app.innerHTML = `
+    <h1>ACTION BLACK BOOKER</h1>
+    <div class="card">
+      <p class="msg">Sign in with your Action Black account. Your password is used once to link
+      your account and is never stored.</p>
+      <input id="email" type="email" placeholder="gym email" autocomplete="username">
+      <input id="pass" type="password" placeholder="gym password" autocomplete="current-password">
+      <select id="branch">${state.branches.map((b) =>
+        `<option value="${esc(b.name)}">${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
+      <button id="go">Sign in</button>
+      ${err ? `<p class="msg err">${esc(err)}</p>` : ""}
+    </div>`;
+  document.getElementById("go").onclick = async (e) => {
+    e.target.disabled = true; e.target.textContent = "Signing in…";
+    try {
+      const res = await fnFetch("login", { method: "POST", body: JSON.stringify({
+        email: document.getElementById("email").value,
+        password: document.getElementById("pass").value,
+        branch_name: document.getElementById("branch").value,
+      })});
+      const { error } = await sb.auth.verifyOtp({ type: "magiclink", token_hash: res.token_hash });
+      if (error) throw error;
+      state.branch = res.home_branch;
+      await renderMain();
+    } catch (e2) { await renderLogin(e2.message); }
+  };
+}
+
+// ── main view ──────────────────────────────────────────────────────────────
+async function renderMain() {
+  app.innerHTML = `<h1>ACTION BLACK BOOKER</h1><p class="msg">Loading schedule…</p>`;
+  const { data: { user } } = await sb.auth.getUser();
+
+  if (!state.branch) {
+    const { data: acc } = await sb.from("connected_accounts").select("home_branch_name").single();
+    state.branch = acc?.home_branch_name ?? "PepeSierra";
+  }
+  if (!state.branches.length) state.branches = await fnFetch("gym?op=branches");
+
+  const days = [...Array(8)].map((_, i) =>
+    new Date(Date.now() + i * 864e5).toISOString().slice(0, 10));
+  if (!days.includes(state.day)) state.day = days[0];
+
+  let loadErr = "";
+  try {
+    [state.acts, state.reqs] = await Promise.all([
+      fnFetch(`gym?op=activities&branch=${encodeURIComponent(state.branch)}&date=${state.day}`),
+      sb.from("booking_requests").select("*").eq("user_id", user.id).then((r) => r.data ?? []),
+    ]);
+  } catch (e) { state.acts = []; loadErr = e.message; }
+
+  const dayActs = state.acts.filter((a) => a.date === state.day)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  // key on activ_config_id + date: activity_id is null for classes >24h out
+  const reqFor = (a) => state.reqs.find((r) =>
+    r.activ_config_id === a.activ_config_id && r.local_date === a.date && r.status !== "cancelled");
+  const now = Date.now();
+
+  const rows = dayActs.map((a) => {
+    const start = new Date(a.start_time).getTime();
+    const opens = start - 24 * 3600e3;
+    const req = reqFor(a);
+    const full = a.occupation >= a.capacity;
+    let action;
+    if (start < now) action = `<span class="tag">past</span>`;
+    else if (req) action = { booked: `<span class="tag ok">booked ✓</span>`,
+                             failed: `<span class="tag err">failed</span>`,
+                             pending: `<button class="small ghost" data-cancel="${req.id}">scheduled ✓</button>` }[req.status]
+                           ?? `<span class="tag">${esc(req.status)}</span>`;
+    else if (opens > now) action = `<button class="small" data-sched="${a.activ_config_id}">schedule</button>`;
+    else if (full) action = `<span class="tag err">full</span>`;
+    else action = `<button class="small" data-book="${a.activ_config_id}">book now</button>`;
+    return `<div class="row${start < now ? " past" : ""}">
+      <span class="time">${hhmm(a.start_time)}</span>
+      <span class="name">${esc(a.name)}<small>${a.occupation}/${a.capacity} taken${
+        opens > now
+          // window opens exactly 24h before: same wall-clock time, previous day
+          ? ` · opens ${dayLabel(new Date(start - 864e5).toISOString().slice(0, 10))} ${hhmm(a.start_time)}`
+          : ""}</small></span>
+      ${action}</div>`;
+  }).join("");
+
+  const myRows = state.reqs.filter((r) => r.status !== "cancelled")
+    .sort((a, b) => a.class_start_at.localeCompare(b.class_start_at))
+    .map((r) => `<div class="row"><span class="name">${esc(r.class_name)} · ${esc(r.local_date)} @ ${esc(r.branch_name)}
+      <small>${r.status === "pending" ? "fires " + new Date(r.window_opens_at).toLocaleString() :
+        esc(r.status) + (r.attempts ? ` (${r.attempts} attempts)` : "")}</small></span>
+      <span class="tag ${r.status === "booked" ? "ok" : r.status === "failed" ? "err" : ""}">${esc(r.status)}</span>
+      ${r.status !== "booked" ? `<button class="small ghost" data-cancel="${r.id}">✕</button>` : ""}</div>`)
+    .join("") || `<p class="msg">nothing scheduled yet</p>`;
+
+  app.innerHTML = `
+    <div class="bar"><h1>ACTION BLACK BOOKER</h1>
+      <button class="small ghost" id="logout">sign out</button></div>
+    <select id="branchSel">${state.branches.map((b) =>
+      `<option value="${esc(b.name)}"${b.name === state.branch ? " selected" : ""}>${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
+    <div class="days">${days.map((d) =>
+      `<button data-day="${d}" class="${d === state.day ? "sel" : ""}">${dayLabel(d)}</button>`).join("")}</div>
+    <div class="card">${loadErr ? `<p class="msg err">${esc(loadErr)}</p>` : rows || `<p class="msg">no classes listed</p>`}</div>
+    <h2>My bookings</h2>
+    <div class="card">${myRows}</div>`;
+
+  document.getElementById("logout").onclick = async () => { await sb.auth.signOut(); renderLogin(); };
+  document.getElementById("branchSel").onchange = (e) => { state.branch = e.target.value; renderMain(); };
+  app.querySelectorAll("[data-day]").forEach((el) =>
+    el.onclick = () => { state.day = el.dataset.day; renderMain(); });
+
+  app.querySelectorAll("[data-sched]").forEach((el) => el.onclick = async () => {
+    const a = dayActs.find((x) => String(x.activ_config_id) === el.dataset.sched);
+    el.disabled = true;
+    const { error } = await sb.from("booking_requests").insert({
+      user_id: user.id, branch_id: a.branch_id, branch_name: a.branch_name, class_name: a.name,
+      class_start_at: a.start_time, local_date: a.date, activity_start: hhmm(a.start_time),
+      capacity: a.capacity, activity_id: a.activity_id, activ_config_id: a.activ_config_id,
+    });
+    if (error) alert(error.message);
+    renderMain();
+  });
+  app.querySelectorAll("[data-cancel]").forEach((el) => el.onclick = async () => {
+    await sb.from("booking_requests").delete().eq("id", el.dataset.cancel);
+    renderMain();
+  });
+  app.querySelectorAll("[data-book]").forEach((el) => el.onclick = async () => {
+    const a = dayActs.find((x) => String(x.activ_config_id) === el.dataset.book);
+    el.disabled = true; el.textContent = "booking…";
+    try {
+      const res = await fnFetch("gym?op=reserve", { method: "POST", body: JSON.stringify({
+        activity_id: a.activity_id, activ_config_id: a.activ_config_id,
+        local_date: a.date, start_time: a.start_time, name: a.name, capacity: a.capacity,
+        branch_name: a.branch_name,
+      })});
+      const spot = res.upstream?.data?.spot_number;
+      alert(res.ok ? `Booked ✓${spot ? ` — spot ${spot}` : ""}`
+                   : `Failed (${res.upstream_status}): ${JSON.stringify(res.upstream).slice(0, 200)}`);
+    } catch (e) { alert(e.message); }
+    renderMain();
+  });
+}
+
+const { data: { session } } = await sb.auth.getSession();
+session ? renderMain() : renderLogin();
+</script>
+</body>
+</html>
