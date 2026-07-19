@@ -69,6 +69,14 @@ const state = { branch: null, day: new Date().toISOString().slice(0, 10), acts: 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const hhmm = (iso) => iso.slice(11, 16);
 const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString("en", { weekday: "short", day: "numeric" });
+// branches arrive city-sorted from the API proxy; group them under city headers
+const branchOptions = (selected) =>
+  [...new Set(state.branches.map((b) => b.city))].map((c) =>
+    `<optgroup label="${esc(c)}">` +
+    state.branches.filter((b) => b.city === c).map((b) =>
+      `<option value="${esc(b.name)}"${b.name === selected ? " selected" : ""}>${esc(b.display_name)}</option>`,
+    ).join("") + `</optgroup>`,
+  ).join("");
 
 async function fnFetch(path, opts = {}) {
   const { data: { session } } = await sb.auth.getSession();
@@ -95,8 +103,7 @@ async function renderLogin(err = "") {
       your account and is never stored.</p>
       <input id="email" type="email" placeholder="ActionBlack Email" autocomplete="username">
       <input id="pass" type="password" placeholder="ActionBlack Password" autocomplete="current-password">
-      <select id="branch">${state.branches.map((b) =>
-        `<option value="${esc(b.name)}">${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
+      <select id="branch">${branchOptions()}</select>
       <button id="go">Sign in</button>
       ${err ? `<p class="msg err">${esc(err)}</p>` : ""}
     </div>`;
@@ -213,8 +220,7 @@ async function renderMain() {
     <div class="bar"><h1>ACTION BLACK BOOKER</h1>
       <span><button class="small ghost" id="refresh" title="refresh occupancy">↻</button>
       <button class="small ghost" id="logout">Sign out</button></span></div>
-    <select id="branchSel">${state.branches.map((b) =>
-      `<option value="${esc(b.name)}"${b.name === state.branch ? " selected" : ""}>${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
+    <select id="branchSel">${branchOptions(state.branch)}</select>
     <div class="days">${days.map((d) =>
       `<button data-day="${d}" class="${d === state.day ? "sel" : ""}">${dayLabel(d)}</button>`).join("")}</div>
     <div class="card">${loadErr ? `<p class="msg err">${esc(loadErr)}</p>` : rows || `<p class="msg">No classes listed</p>`}</div>
