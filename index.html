@@ -79,8 +79,8 @@ async function renderLogin(err = "") {
     <div class="card">
       <p class="msg">Sign in with your Action Black account. Your password is used once to link
       your account and is never stored.</p>
-      <input id="email" type="email" placeholder="gym email" autocomplete="username">
-      <input id="pass" type="password" placeholder="gym password" autocomplete="current-password">
+      <input id="email" type="email" placeholder="ActionBlack Email" autocomplete="username">
+      <input id="pass" type="password" placeholder="ActionBlack Password" autocomplete="current-password">
       <select id="branch">${state.branches.map((b) =>
         `<option value="${esc(b.name)}">${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
       <button id="go">Sign in</button>
