@@ -103,8 +103,28 @@ async function renderLogin(err = "") {
 }
 
 // ── main view ──────────────────────────────────────────────────────────────
+// The activities endpoint returns the whole week, so cache it and switch days
+// locally; only refetch when leaving the cached date range, changing branch,
+// or explicitly refreshing (occupancy numbers go stale otherwise).
+const actsCache = { branch: null, from: null, to: null, acts: [] };
+const hasCached = (branch, day) =>
+  actsCache.branch === branch && actsCache.from && day >= actsCache.from && day <= actsCache.to;
+async function actsFor(branch, day) {
+  if (hasCached(branch, day)) return actsCache.acts;
+  const acts = await fnFetch(`gym?op=activities&branch=${encodeURIComponent(branch)}&date=${day}`);
+  const dates = acts.map((a) => a.date).sort();
+  Object.assign(actsCache, {
+    branch, acts,
+    from: dates[0] ?? day,
+    to: dates[dates.length - 1] ?? day,
+  });
+  return acts;
+}
+
 async function renderMain() {
-  app.innerHTML = `<h1>ACTION BLACK BOOKER</h1><p class="msg">Loading schedule…</p>`;
+  if (!hasCached(state.branch, state.day)) {
+    app.innerHTML = `<h1>ACTION BLACK BOOKER</h1><p class="msg">Loading schedule…</p>`;
+  }
   const { data: { user } } = await sb.auth.getUser();
 
   if (!state.branch) {
@@ -120,7 +140,7 @@ async function renderMain() {
   let loadErr = "";
   try {
     [state.acts, state.reqs] = await Promise.all([
-      fnFetch(`gym?op=activities&branch=${encodeURIComponent(state.branch)}&date=${state.day}`),
+      actsFor(state.branch, state.day),
       sb.from("booking_requests").select("*").eq("user_id", user.id).then((r) => r.data ?? []),
     ]);
   } catch (e) { state.acts = []; loadErr = e.message; }
@@ -167,7 +187,8 @@ async function renderMain() {
 
   app.innerHTML = `
     <div class="bar"><h1>ACTION BLACK BOOKER</h1>
-      <button class="small ghost" id="logout">sign out</button></div>
+      <span><button class="small ghost" id="refresh" title="refresh occupancy">↻</button>
+      <button class="small ghost" id="logout">sign out</button></span></div>
     <select id="branchSel">${state.branches.map((b) =>
       `<option value="${esc(b.name)}"${b.name === state.branch ? " selected" : ""}>${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
     <div class="days">${days.map((d) =>
@@ -176,6 +197,7 @@ async function renderMain() {
     <h2>My bookings</h2>
     <div class="card">${myRows}</div>`;
 
+  document.getElementById("refresh").onclick = () => { actsCache.branch = null; renderMain(); };
   document.getElementById("logout").onclick = async () => { await sb.auth.signOut(); renderLogin(); };
   document.getElementById("branchSel").onchange = (e) => { state.branch = e.target.value; renderMain(); };
   app.querySelectorAll("[data-day]").forEach((el) =>
