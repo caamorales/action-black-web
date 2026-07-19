@@ -20,7 +20,10 @@
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
   input, select, button { font: inherit; border-radius: 8px; border: 1px solid var(--line);
          background:#101014; color:var(--txt); padding: 10px 12px; width: 100%; margin-bottom: 8px; }
-  select { padding-top: 12px; padding-bottom: 12px; }
+  /* native selects ignore padding — strip the OS widget and draw our own chevron */
+  select { appearance: none; -webkit-appearance: none; padding: 13px 38px 13px 12px;
+           background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%238b8b98' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
+           background-repeat: no-repeat; background-position: right 14px center; }
   button { cursor: pointer; background: var(--acc); color: #111; font-weight: 600; border: 0; }
   button.small { width:auto; padding:6px 12px; font-size:13px; margin:0; }
   button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); }
