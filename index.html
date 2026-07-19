@@ -6,15 +6,21 @@
 <title>Action Black Booker</title>
 <style>
   :root { color-scheme: dark; --bg:#0e0e11; --card:#1a1a20; --line:#2a2a33; --txt:#ececf1;
-          --dim:#8b8b98; --acc:#e8ff47; --ok:#4ade80; --err:#f87171; }
+          --dim:#8b8b98; --acc:#ffffff; --ok:#4ade80; --err:#f87171; }
   * { box-sizing: border-box; margin: 0; }
   body { background:var(--bg); color:var(--txt); font:15px/1.45 -apple-system, system-ui, sans-serif;
-         max-width: 480px; margin: 0 auto; padding: 16px; }
+         max-width: 680px; margin: 0 auto; padding: 16px; }
+  @media (min-width: 600px) {
+    body { padding: 28px 32px; }
+    .card { padding: 18px 20px; }
+    .row { padding: 12px 8px; gap: 14px; }
+  }
   h1 { font-size: 18px; letter-spacing: .12em; margin-bottom: 12px; }
   h2 { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing:.08em; margin: 18px 0 8px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
   input, select, button { font: inherit; border-radius: 8px; border: 1px solid var(--line);
          background:#101014; color:var(--txt); padding: 10px 12px; width: 100%; margin-bottom: 8px; }
+  select { padding-top: 12px; padding-bottom: 12px; }
   button { cursor: pointer; background: var(--acc); color: #111; font-weight: 600; border: 0; }
   button.small { width:auto; padding:6px 12px; font-size:13px; margin:0; }
   button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); }
@@ -29,7 +35,8 @@
                  border:1px solid var(--line); font-weight:500; }
   .days button.sel { background:var(--acc); color:#111; font-weight:700; border-color:var(--acc); }
   .msg { color: var(--dim); padding: 8px 2px; } .msg.err { color: var(--err); }
-  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line);
+         color:var(--dim); text-transform: capitalize; }
   .tag.ok { color:var(--ok); border-color:var(--ok); } .tag.err { color:var(--err); border-color:var(--err); }
   .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
   a { color: var(--dim); }
@@ -158,20 +165,20 @@ async function renderMain() {
     const req = reqFor(a);
     const full = a.occupation >= a.capacity;
     let action;
-    if (start < now) action = `<span class="tag">past</span>`;
-    else if (req) action = { booked: `<span class="tag ok">booked ✓</span>`,
-                             failed: `<span class="tag err">failed</span>`,
-                             pending: `<button class="small ghost" data-cancel="${req.id}">scheduled ✓</button>` }[req.status]
+    if (start < now) action = `<span class="tag">Past</span>`;
+    else if (req) action = { booked: `<span class="tag ok">Booked ✓</span>`,
+                             failed: `<span class="tag err">Failed</span>`,
+                             pending: `<button class="small ghost" data-cancel="${req.id}">Scheduled ✓</button>` }[req.status]
                            ?? `<span class="tag">${esc(req.status)}</span>`;
-    else if (opens > now) action = `<button class="small" data-sched="${a.activ_config_id}">schedule</button>`;
-    else if (full) action = `<span class="tag err">full</span>`;
-    else action = `<button class="small" data-book="${a.activ_config_id}">book now</button>`;
+    else if (opens > now) action = `<button class="small" data-sched="${a.activ_config_id}">Schedule</button>`;
+    else if (full) action = `<span class="tag err">Full</span>`;
+    else action = `<button class="small" data-book="${a.activ_config_id}">Book now</button>`;
     return `<div class="row${start < now ? " past" : ""}">
       <span class="time">${hhmm(a.start_time)}</span>
       <span class="name">${esc(a.name)}<small>${a.occupation}/${a.capacity} taken${
         opens > now
           // window opens exactly 24h before: same wall-clock time, previous day
-          ? ` · opens ${dayLabel(new Date(start - 864e5).toISOString().slice(0, 10))} ${hhmm(a.start_time)}`
+          ? ` · Opens ${dayLabel(new Date(start - 864e5).toISOString().slice(0, 10))} ${hhmm(a.start_time)}`
           : ""}</small></span>
       ${action}</div>`;
   }).join("");
@@ -179,21 +186,21 @@ async function renderMain() {
   const myRows = state.reqs.filter((r) => r.status !== "cancelled")
     .sort((a, b) => a.class_start_at.localeCompare(b.class_start_at))
     .map((r) => `<div class="row"><span class="name">${esc(r.class_name)} · ${esc(r.local_date)} @ ${esc(r.branch_name)}
-      <small>${r.status === "pending" ? "fires " + new Date(r.window_opens_at).toLocaleString() :
+      <small>${r.status === "pending" ? "Fires " + new Date(r.window_opens_at).toLocaleString() :
         esc(r.status) + (r.attempts ? ` (${r.attempts} attempts)` : "")}</small></span>
       <span class="tag ${r.status === "booked" ? "ok" : r.status === "failed" ? "err" : ""}">${esc(r.status)}</span>
       ${r.status !== "booked" ? `<button class="small ghost" data-cancel="${r.id}">✕</button>` : ""}</div>`)
-    .join("") || `<p class="msg">nothing scheduled yet</p>`;
+    .join("") || `<p class="msg">Nothing scheduled yet</p>`;
 
   app.innerHTML = `
     <div class="bar"><h1>ACTION BLACK BOOKER</h1>
       <span><button class="small ghost" id="refresh" title="refresh occupancy">↻</button>
-      <button class="small ghost" id="logout">sign out</button></span></div>
+      <button class="small ghost" id="logout">Sign out</button></span></div>
     <select id="branchSel">${state.branches.map((b) =>
       `<option value="${esc(b.name)}"${b.name === state.branch ? " selected" : ""}>${esc(b.display_name)} — ${esc(b.city)}</option>`).join("")}</select>
     <div class="days">${days.map((d) =>
       `<button data-day="${d}" class="${d === state.day ? "sel" : ""}">${dayLabel(d)}</button>`).join("")}</div>
-    <div class="card">${loadErr ? `<p class="msg err">${esc(loadErr)}</p>` : rows || `<p class="msg">no classes listed</p>`}</div>
+    <div class="card">${loadErr ? `<p class="msg err">${esc(loadErr)}</p>` : rows || `<p class="msg">No classes listed</p>`}</div>
     <h2>My bookings</h2>
     <div class="card">${myRows}</div>`;
 
@@ -220,7 +227,7 @@ async function renderMain() {
   });
   app.querySelectorAll("[data-book]").forEach((el) => el.onclick = async () => {
     const a = dayActs.find((x) => String(x.activ_config_id) === el.dataset.book);
-    el.disabled = true; el.textContent = "booking…";
+    el.disabled = true; el.textContent = "Booking…";
     try {
       const res = await fnFetch("gym?op=reserve", { method: "POST", body: JSON.stringify({
         activity_id: a.activity_id, activ_config_id: a.activ_config_id,
