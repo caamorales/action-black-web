@@ -192,7 +192,8 @@ async function renderMain() {
     if (start < now) action = `<span class="tag">Past</span>`;
     else if (req) action = { booked: `<span class="tag ok">Booked ✓</span>`,
                              failed: `<span class="tag err">Failed</span>`,
-                             pending: `<button class="small ghost" data-cancel="${req.id}">Scheduled ✓</button>` }[req.status]
+                             pending: `<button class="small ghost" data-cancel="${req.id}">Scheduled ✓</button>`,
+                             claiming: `<span class="tag">Booking…</span>` }[req.status]
                            ?? `<span class="tag">${esc(req.status)}</span>`;
     else if (opens > now) action = `<button class="small" data-sched="${a.activ_config_id}">Schedule</button>`;
     else if (full) action = `<span class="tag err">Full</span>`;
